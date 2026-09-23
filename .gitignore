@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+data/*.csv
+data/*.db
+data/*.db-wal
+data/*.db-shm
+sentra/ml/artifacts/
+.pytest_cache/

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENTRA-IIoT — Plant security console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<!-- ───────────────────────── shift bar ───────────────────────── -->
+<header class="shiftbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-text">
+      <strong>SENTRA-IIoT</strong>
+      <em id="plantName">Northgate bottling &amp; water treatment</em>
+    </span>
+  </div>
+
+  <div class="shift-state">
+    <div class="pill" id="connPill" data-state="connecting">
+      <span class="pill-dot"></span><span id="connLabel">Connecting</span>
+    </div>
+    <div class="shift-meta">
+      <span id="shiftLabel">Night shift</span>
+      <span class="clock" id="clock">--:--:--</span>
+    </div>
+  </div>
+
+  <div class="shift-actions">
+    <button class="ghost" id="streamToggle" title="Pause or resume the live feed (space)">
+      <span id="streamToggleLabel">Pause feed</span>
+    </button>
+    <button class="ghost icon" id="soundToggle" title="Alert sound for critical events" aria-pressed="false">♪</button>
+    <button class="ghost icon" id="themeToggle" title="Switch between night and day console">◐</button>
+    <button class="ghost icon" id="helpToggle" title="Keyboard shortcuts">?</button>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ───────────────────────── nav rail ───────────────────────── -->
+  <nav class="rail" aria-label="Sections">
+    <button class="rail-item is-active" data-view="floor">
+      <span class="rail-glyph">▤</span><span class="rail-label">The floor</span>
+    </button>
+    <button class="rail-item" data-view="feed">
+      <span class="rail-glyph">≡</span><span class="rail-label">Live feed</span>
+      <span class="rail-badge" id="feedBadge" hidden>0</span>
+    </button>
+    <button class="rail-item" data-view="triage">
+      <span class="rail-glyph">⬚</span><span class="rail-label">Triage</span>
+      <span class="rail-badge" id="triageBadge" hidden>0</span>
+    </button>
+    <button class="rail-item" data-view="range">
+      <span class="rail-glyph">◎</span><span class="rail-label">Drill range</span>
+    </button>
+    <button class="rail-item" data-view="model">
+      <span class="rail-glyph">◫</span><span class="rail-label">The model</span>
+    </button>
+    <div class="rail-foot">
+      <div class="rail-stat"><span id="railEvents">0</span><em>events held</em></div>
+      <div class="rail-stat"><span id="railAcc">—</span><em>live accuracy</em></div>
+    </div>
+  </nav>
+
+  <main class="stage">
+
+    <!-- ═════════════════════ VIEW: THE FLOOR ═════════════════════ -->
+    <section class="view is-active" id="view-floor">
+
+      <div class="brief" id="brief">
+        <p class="brief-line" id="briefLine">Reading the last hour of traffic…</p>
+        <p class="brief-sub" id="briefSub"></p>
+      </div>
+
+      <div class="kpi-row">
+        <article class="kpi" data-tone="neutral">
+          <h3>Flows classified</h3>
+          <p class="kpi-value" id="kpiEvents">0</p>
+          <p class="kpi-note" id="kpiEventsNote">in the last hour</p>
+        </article>
+        <article class="kpi" data-tone="critical">
+          <h3>Needs someone now</h3>
+          <p class="kpi-value" id="kpiCritical">0</p>
+          <p class="kpi-note" id="kpiCriticalNote">critical and high, still open</p>
+        </article>
+        <article class="kpi" data-tone="review">
+          <h3>Model is unsure</h3>
+          <p class="kpi-value" id="kpiReview">0</p>
+          <p class="kpi-note" id="kpiReviewNote">low confidence or unfamiliar traffic</p>
+        </article>
+        <article class="kpi" data-tone="neutral">
+          <h3>Decision time</h3>
+          <p class="kpi-value" id="kpiLatency">—</p>
+          <p class="kpi-note" id="kpiLatencyNote">average per flow</p>
+        </article>
+      </div>
+
+      <section class="panel">
+        <header class="panel-head">
+          <h2>Activity, last 30 minutes</h2>
+          <div class="legend" id="chartLegend"></div>
+        </header>
+        <div class="chart-wrap">
+          <svg id="activityChart" viewBox="0 0 900 210" preserveAspectRatio="none"
+               role="img" aria-label="Events per minute, stacked by severity"></svg>
+          <div class="chart-tip" id="chartTip" hidden></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <header class="panel-head">
+          <h2>The floor</h2>
+          <p class="panel-sub">Ten monitored assets. Tiles light up as traffic is classified against them.</p>
+        </header>
+        <div class="floor-grid" id="floorGrid"></div>
+      </section>
+
+      <div class="split">
+        <section class="panel">
+          <header class="panel-head"><h2>What is being seen</h2></header>
+          <div class="bars" id="familyBars"></div>
+        </section>
+        <section class="panel">
+          <header class="panel-head"><h2>Loudest assets</h2></header>
+          <div class="bars" id="assetBars"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ═════════════════════ VIEW: LIVE FEED ═════════════════════ -->
+    <section class="view" id="view-feed">
+      <div class="toolbar">
+        <div class="search">
+          <input type="search" id="feedSearch" placeholder="Search by address, class or asset"
+                 aria-label="Search alerts">
+        </div>
+        <div class="chips" id="sevChips" role="group" aria-label="Filter by severity"></div>
+        <label class="switch">
+          <input type="checkbox" id="onlyReview">
+          <span>Only what needs a human</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" id="hideNormal" checked>
+          <span>Hide routine traffic</span>
+        </label>
+        <button class="ghost" id="clearFilters">Reset</button>
+      </div>
+
+      <section class="panel flush">
+        <div class="feed" id="feed" role="list" aria-live="polite"></div>
+        <div class="empty" id="feedEmpty" hidden>
+          <h3>Nothing matches those filters</h3>
+          <p>Widen the severity range, or clear the search box. The feed keeps running underneath.</p>
+        </div>
+        <footer class="feed-foot">
+          <span id="feedCount">0 shown</span>
+          <button class="ghost" id="loadMore">Load 50 more</button>
+        </footer>
+      </section>
+    </section>
+
+    <!-- ═════════════════════ VIEW: TRIAGE ═════════════════════ -->
+    <section class="view" id="view-triage">
+      <div class="toolbar">
+        <p class="toolbar-note">Open work, sorted by what would hurt most if it were real.
+          Move a card as you work it; everything is written to the audit trail.</p>
+        <button class="ghost" id="refreshTriage">Refresh</button>
+      </div>
+      <div class="board" id="board"></div>
+    </section>
+
+    <!-- ═════════════════════ VIEW: DRILL RANGE ═════════════════════ -->
+    <section class="view" id="view-range">
+      <div class="brief">
+        <p class="brief-line">Fire a controlled burst and watch the model answer.</p>
+        <p class="brief-sub">Every drill replays real Edge-IIoTset flows the classifier was never
+          trained on, so the score below is a genuine test, not a rehearsal.</p>
+      </div>
+
+      <section class="panel">
+        <header class="panel-head">
+          <h2>Burst settings</h2>
+        </header>
+        <div class="range-controls">
+          <label class="slider">
+            <span>Flows per burst <output id="burstOut">6</output></span>
+            <input type="range" id="burstCount" min="1" max="50" value="6">
+          </label>
+          <label class="slider">
+            <span>Background traffic rate <output id="rateOut">1.4 s</output></span>
+            <input type="range" id="streamRate" min="200" max="5000" step="100" value="1400">
+          </label>
+          <label class="slider">
+            <span>Share of background that is hostile <output id="ratioOut">18%</output></span>
+            <input type="range" id="attackRatio" min="0" max="100" value="18">
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <header class="panel-head">
+          <h2>Attack library</h2>
+          <p class="panel-sub">Fifteen Edge-IIoTset classes, grouped the way an analyst triages them.</p>
+        </header>
+        <div class="library" id="library"></div>
+      </section>
+
+      <section class="panel">
+        <header class="panel-head">
+          <h2>Drill log</h2>
+          <button class="ghost" id="clearConsole">Clear</button>
+        </header>
+        <div class="console" id="console" aria-live="polite">
+          <p class="console-empty">No drills yet. Pick an attack above.</p>
+        </div>
+      </section>
+    </section>
+
+    <!-- ═════════════════════ VIEW: MODEL ═════════════════════ -->
+    <section class="view" id="view-model">
+      <div class="brief">
+        <p class="brief-line" id="modelHeadline">Loading the model card…</p>
+        <p class="brief-sub" id="modelSub"></p>
+      </div>
+
+      <div class="kpi-row" id="modelKpis"></div>
+
+      <section class="panel" id="sourceWarning" hidden>
+        <div class="warning">
+          <h3>These numbers come from synthetic data</h3>
+          <p id="sourceWarningBody"></p>
+        </div>
+      </section>
+
+      <div class="split">
+        <section class="panel">
+          <header class="panel-head">
+            <h2>Where it gets confused</h2>
+            <p class="panel-sub">Rows are truth, columns are the call. Everything off the diagonal is a mistake.</p>
+          </header>
+          <div class="matrix-wrap"><div id="matrix"></div></div>
+        </section>
+        <section class="panel">
+          <header class="panel-head">
+            <h2>What it actually looks at</h2>
+            <p class="panel-sub">Feature importance across the whole forest.</p>
+          </header>
+          <div class="bars" id="importanceBars"></div>
+        </section>
+      </div>
+
+      <section class="panel">
+        <header class="panel-head"><h2>Class by class</h2></header>
+        <div class="table-wrap">
+          <table class="data" id="perClass">
+            <thead><tr>
+              <th>Class</th><th>Family</th><th>Precision</th><th>Recall</th>
+              <th>F1</th><th>Test samples</th><th>Reading</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="split">
+        <section class="panel">
+          <header class="panel-head"><h2>Compared with</h2></header>
+          <div class="bars" id="baselineBars"></div>
+        </section>
+        <section class="panel">
+          <header class="panel-head"><h2>Speed</h2></header>
+          <div class="stat-list" id="latencyStats"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <!-- ───────────────────────── detail drawer ───────────────────────── -->
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <header class="drawer-head">
+      <div>
+        <p class="drawer-eyebrow" id="drawerFamily"></p>
+        <h2 id="drawerTitle"></h2>
+      </div>
+      <button class="ghost icon" id="drawerClose" aria-label="Close detail">✕</button>
+    </header>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<div class="modal" id="helpModal" hidden>
+  <div class="modal-card">
+    <h2>Keyboard</h2>
+    <dl class="keys">
+      <dt>1 – 5</dt><dd>Jump between sections</dd>
+      <dt>Space</dt><dd>Pause or resume the live feed</dd>
+      <dt>/</dt><dd>Search the feed</dd>
+      <dt>Esc</dt><dd>Close the detail panel</dd>
+      <dt>R</dt><dd>Only show what needs a human</dd>
+    </dl>
+    <button class="primary" id="helpClose">Got it</button>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
