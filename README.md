@@ -2,7 +2,6 @@
 
 Threat detection for industrial IoT networks, trained on the Edge-IIoTset corpus. A FastAPI service classifies network flows into fifteen attack classes, explains each verdict in plain English, and serves an analyst console that updates live over a WebSocket.
 
-This is a rebuild of the v1 prototype. Section [What changed](#what-changed-from-v1) lists what moved and why.
 
 ## Quick start
 
