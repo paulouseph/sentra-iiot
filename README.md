@@ -19,7 +19,6 @@ cp .env.example .env
 #    download ML-EdgeIIoT-dataset.csv from Kaggle into data/
 #    https://www.kaggle.com/datasets/mohamedamineferrag/edgeiiotset-cyber-security-dataset-of-iot-iiot
 
-
 # 4. train
 python -m sentra.ml.train
 
